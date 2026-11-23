@@ -11,6 +11,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
+use ratatui_textarea::TextArea;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -36,7 +37,9 @@ pub struct App {
     volume: f32,
     /// Is the user searching the playlist?
     searching: bool,
-    /// Search text entered by the user.
+    /// Single-line search editor.
+    search_input: TextArea<'static>,
+    /// Search text used to filter the playlist.
     query: String,
     /// A short message shown in the footer.
     message: String,
@@ -78,6 +81,7 @@ impl App {
             playing: None,
             volume: 0.5,
             searching: false,
+            search_input: TextArea::default(),
             query: String::new(),
             message,
         })
@@ -124,13 +128,7 @@ impl App {
             .centered();
         frame.render_widget(
             Paragraph::new("An MP3 player built with Ratatui")
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .title(title)
-                        .border_style(tailwind::GRAY.c700)
-                        .style(Style::new().bg(tailwind::GRAY.c900)),
-                )
+                .block(Self::create_pane("Ratatune").title(title))
                 .alignment(Alignment::Center),
             area,
         );
@@ -231,14 +229,18 @@ impl App {
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
-        let message = if self.searching {
-            format!("Search: {}  (Enter to finish, Esc to clear)", self.query)
-        } else {
-            format!(
-                "{}  |  ↑/↓ select  Enter play  Space pause  n next  +/- volume  / search  q quit",
-                self.message
-            )
-        };
+        if self.searching {
+            let block = Self::create_pane("Search (Enter to finish, Esc to clear)");
+            let input_area = block.inner(area);
+            frame.render_widget(block, area);
+            frame.render_widget(&self.search_input, input_area);
+            return;
+        }
+
+        let message = format!(
+            "{}  |  ↑/↓ select  Enter play  Space pause  n next  +/- volume  / search  q quit",
+            self.message
+        );
         frame.render_widget(
             Paragraph::new(Line::from(vec![Span::styled(
                 message,
@@ -313,7 +315,10 @@ impl App {
             (_, KeyCode::Char('-')) => self.adjust_volume(-0.1),
             (_, KeyCode::Char('/')) => {
                 self.searching = true;
+                self.search_input = TextArea::default();
                 self.query.clear();
+                self.table_state
+                    .select((!self.tracks.is_empty()).then_some(0));
             }
             _ => {}
         }
@@ -324,21 +329,22 @@ impl App {
             KeyCode::Esc => {
                 self.query.clear();
                 self.searching = false;
+                self.search_input = TextArea::default();
                 self.table_state
                     .select((!self.tracks.is_empty()).then_some(0));
             }
             KeyCode::Enter => self.searching = false,
-            KeyCode::Backspace => {
-                self.query.pop();
+            _ => {
+                self.search_input.input(key);
+                self.query = self
+                    .search_input
+                    .lines()
+                    .first()
+                    .cloned()
+                    .unwrap_or_default();
                 self.table_state
                     .select((!self.visible_tracks().is_empty()).then_some(0));
             }
-            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.query.push(character);
-                self.table_state
-                    .select((!self.visible_tracks().is_empty()).then_some(0));
-            }
-            _ => {}
         }
     }
 
