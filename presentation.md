@@ -127,14 +127,14 @@ cargo run
 
 # Schedule
 
-| Duration   | Chapter       | Topic                                                              |
-| ---------- | ------------- | ------------------------------------------------------------------ |
-| **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template |
-| **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files       |
-| **30 min** | **Chapter 3** | **Layout & Styling** - Arrange the playlist, player and controls   |
-| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details and progress gauge     |
-| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback          |
-| **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                         |
+| Duration   | Chapter       | Topic                                                                  |
+| ---------- | ------------- | ---------------------------------------------------------------------- |
+| **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template     |
+| **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files           |
+| **30 min** | **Chapter 3** | **Widgets** - Render a playlist table and navigate with the arrow keys |
+| **45 min** | **Chapter 4** | **Layout & Styling** - Split the screen into multiple widget areas     |
+| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback              |
+| **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                             |
 
 <!-- end_slide -->
 
@@ -200,7 +200,7 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 <!-- end_slide -->
 
-# Chapter 3 - Layout & styling 🧀 (30 min)
+# Chapter 3 - Widgets 🧀 (30 min)
 
 <!-- column_layout: [1, 1] -->
 
@@ -208,49 +208,49 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 ## Objectives
 
-• Split the screen into a header, playlist, player and footer
+• Render the playlist in a `Table`
 
-• Show the playlist beside the now-playing panel
+• Show title, artist and track length
 
-• Add a progress area below the track details
+• Highlight the selected track
+
+• Move through tracks with the up and down arrow keys
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Add a one-line title at the top
+• Also support `j`/`k` navigation
+
+• Add a helpful empty-playlist message
+
+<!-- end_slide -->
+
+# Chapter 4 - Layout & styling 🧀 (45 min)
+
+<!-- column_layout: [1, 1] -->
+
+<!-- column: 0 -->
+
+## Objectives
+
+• Use `Layout` to split the screen into a header, playlist and footer
+
+• Keep the playlist table and selection from Chapter 3
+
+• Render a separate widget in each area
+
+<!-- column: 1 -->
+
+## Bonus track
 
 • Refactor each area into its own render function
 
 • Render rounded borders and a styled header
 
-<!-- end_slide -->
+• Add a selected-track details panel beside the playlist
 
-# Chapter 4 - Widgets 🧀 (45 min)
-
-<!-- column_layout: [1, 1] -->
-
-<!-- column: 0 -->
-
-## Objectives
-
-• Render tracks in a `Table`
-
-• Highlight the selected track
-
-• Show title, artist, album and duration
-
-• Render playback progress with a `Gauge`
-
-<!-- column: 1 -->
-
-## Bonus track
-
-• Show a playing icon beside the current track
-
-• Adjust volume with `+`/`-`
-
-• Add a visualizer with `Sparkline`
+• Show playback progress with a `Gauge`
 
 <!-- end_slide -->
 

@@ -4,7 +4,7 @@ In this hands-on workshop, you will use [Ratatui](https://ratatui.rs), the Rust 
 
 ### What will you build?
 
-**Ratatune** scans the `music/` folder, displays the MP3 files it finds, and lets you browse, search, play, and pause your music. The finished app shows the current track and playback progress!
+**Ratatune** scans the `music/` folder, displays the MP3 files it finds, and lets you browse, search, play and pause your music. The finished app shows the current track and playback progress!
 
 ### Who is this workshop for?
 
@@ -36,9 +36,9 @@ The workshop is split into 5 chapters and aims to be completed **in 3 hours**.
 | ---------- | ------------- | ----------------------------------------------------------------- |
 | **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template |
 | **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files      |
-| **30 min** | **Chapter 3** | **Layout & Styling** - Arrange the playlist, player, and controls |
-| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details, and progress gauge   |
-| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search, and control playback        |
+| **30 min** | **Chapter 3** | **Widgets** - Render a playlist table and navigate with the arrow keys |
+| **45 min** | **Chapter 4** | **Layout & Styling** - Split the screen into multiple widget areas   |
+| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback          |
 | **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                        |
 
 ### Walkthrough

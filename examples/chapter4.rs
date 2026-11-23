@@ -1,7 +1,7 @@
 #![allow(unused_imports)] // Keep later chapter imports ready from the start.
 
 #[path = "../src/music.rs"]
-#[allow(dead_code)] // Playback controls are wired up in the next chapter.
+#[allow(dead_code)] // Playback controls are added in the next chapter.
 mod music;
 
 use std::time::Duration;
@@ -53,17 +53,14 @@ impl App {
         Ok(())
     }
 
+    /// Split the area into a header, playlist and footer.
     fn render(&mut self, frame: &mut Frame) {
-        let [header_area, content_area, footer_area] =
+        let [header_area, playlist_area, footer_area] =
             Layout::vertical([Length(3), Min(0), Length(3)]).areas(frame.area());
-        let [playlist_area, player_area] =
-            Layout::horizontal([Percentage(62), Fill(1)]).areas(content_area);
-        let [now_playing_area, progress_area] =
-            Layout::vertical([Fill(1), Length(5)]).areas(player_area);
 
         frame.render_widget(
-            Paragraph::new("♫  MP3 player built with Ratatui")
-                .block(Self::create_pane("Ratatune"))
+            Paragraph::new("♫ Ratatune ♫")
+                .block(Self::create_pane("MP3 player built with Ratatui"))
                 .alignment(Alignment::Center),
             header_area,
         );
@@ -93,20 +90,7 @@ impl App {
         }
 
         frame.render_widget(
-            Paragraph::new("Select a track to start listening")
-                .block(Self::create_pane("Now Playing")),
-            now_playing_area,
-        );
-        frame.render_widget(
-            Gauge::default()
-                .block(Self::create_pane("Progress"))
-                .gauge_style(Style::new().fg(tailwind::GREEN.c400))
-                .ratio(0.0)
-                .label("0:00 / 0:00"),
-            progress_area,
-        );
-        frame.render_widget(
-            Paragraph::new("↑/↓ select  Enter play  Space pause  q quit")
+            Paragraph::new("↑/↓ or j/k select  q quit")
                 .block(Self::create_pane("Controls"))
                 .alignment(Alignment::Center),
             footer_area,
@@ -124,8 +108,7 @@ impl App {
     fn handle_crossterm_events(&mut self) -> color_eyre::Result<()> {
         match event::read()? {
             Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key_event(key),
-            Event::Mouse(_) => {}
-            Event::Resize(_, _) => {}
+            Event::Mouse(_) | Event::Resize(_, _) => {}
             _ => {}
         }
         Ok(())
@@ -134,10 +117,26 @@ impl App {
     fn on_key_event(&mut self, key: KeyEvent) {
         match (key.modifiers, key.code) {
             (_, KeyCode::Esc | KeyCode::Char('q'))
-            | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => {
-                self.running = false;
-            }
+            | (KeyModifiers::CONTROL, KeyCode::Char('c' | 'C')) => self.running = false,
+            (_, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
+            (_, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
             _ => {}
+        }
+    }
+
+    fn select_next(&mut self) {
+        if !self.tracks.is_empty() {
+            let selected = self.table_state.selected().unwrap_or(0);
+            self.table_state
+                .select(Some((selected + 1) % self.tracks.len()));
+        }
+    }
+
+    fn select_previous(&mut self) {
+        if !self.tracks.is_empty() {
+            let selected = self.table_state.selected().unwrap_or(0);
+            self.table_state
+                .select(Some((selected + self.tracks.len() - 1) % self.tracks.len()));
         }
     }
 }
