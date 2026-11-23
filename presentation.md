@@ -132,7 +132,7 @@ cargo run
 | **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template |
 | **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files       |
 | **30 min** | **Chapter 3** | **Layout & Styling** - Arrange the playlist, player and controls   |
-| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details and progress gauge    |
+| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details and progress gauge     |
 | **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback          |
 | **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                         |
 
@@ -156,8 +156,8 @@ cargo run
 
 ```bash
 cargo install --locked cargo-generate
+
 cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
-cd ratatune
 ```
 
 • The starter already includes `music.rs` and the audio dependencies
