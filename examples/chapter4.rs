@@ -1,14 +1,19 @@
+#![allow(unused_imports)] // Keep later chapter imports ready from the start.
+
 #[path = "../src/music.rs"]
 #[allow(dead_code)] // Playback controls are wired up in the next chapter.
 mod music;
 
+use std::time::Duration;
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use music::{Player, Track, format_duration, scan_tracks};
 use ratatui::{
     DefaultTerminal, Frame,
-    layout::{Alignment, Constraint::*, Layout},
+    layout::{Alignment, Constraint::*, Layout, Rect},
     style::{Style, Stylize, palette::tailwind},
-    text::Line,
-    widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
 
 fn main() -> color_eyre::Result<()> {
@@ -22,13 +27,13 @@ fn main() -> color_eyre::Result<()> {
 /// The main application which holds the playlist and UI state.
 pub struct App {
     running: bool,
-    tracks: Vec<music::Track>,
+    tracks: Vec<Track>,
     table_state: TableState,
 }
 
 impl App {
     pub fn new() -> color_eyre::Result<Self> {
-        let tracks = music::scan_tracks("music")?;
+        let tracks = scan_tracks("music")?;
         let mut table_state = TableState::default();
         if !tracks.is_empty() {
             table_state.select(Some(0));
@@ -67,7 +72,7 @@ impl App {
             Row::new(vec![
                 Cell::from(track.title.as_str()),
                 Cell::from(track.artist.as_deref().unwrap_or("Unknown artist")),
-                Cell::from(music::format_duration(track.duration)),
+                Cell::from(format_duration(track.duration)),
             ])
         });
         let header = Row::new(vec!["Title", "Artist", "Length"])

@@ -1,13 +1,19 @@
+#![allow(unused_imports)] // Keep later chapter imports ready from the start.
+
 #[path = "../src/music.rs"]
 #[allow(dead_code)] // Later chapters connect the prepared playlist and playback code.
 mod music;
 
+use std::time::Duration;
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use music::{Player, Track, format_duration, scan_tracks};
 use ratatui::{
     DefaultTerminal, Frame,
-    style::Stylize,
-    text::Line,
-    widgets::{Block, Paragraph},
+    layout::{Alignment, Constraint::*, Layout, Rect},
+    style::{Style, Stylize, palette::tailwind},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
 
 fn main() -> color_eyre::Result<()> {
@@ -44,8 +50,7 @@ impl App {
     /// Renders the user interface.
     fn render(&mut self, frame: &mut Frame) {
         let title = Line::from("Ratatune").bold().blue().centered();
-        let text = "Your MP3 player starts here!\n\n\
-            Add a few files to the music/ folder, then press `q` to quit.";
+        let text = "Your MP3 player starts here!\n\nPress `q` to quit.";
         frame.render_widget(
             Paragraph::new(text)
                 .block(Block::bordered().title(title))

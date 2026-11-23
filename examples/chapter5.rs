@@ -3,8 +3,8 @@ mod music;
 
 use std::time::Duration;
 
-use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use music::{Player, Track, format_duration, scan_tracks};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Alignment, Constraint::*, Layout, Rect},
@@ -13,7 +13,7 @@ use ratatui::{
     widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
 
-fn main() -> Result<()> {
+fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
     let result = App::new().and_then(|app| app.run(terminal));
@@ -26,11 +26,11 @@ pub struct App {
     /// Is the application running?
     running: bool,
     /// The music files discovered in the local music folder.
-    tracks: Vec<music::Track>,
+    tracks: Vec<Track>,
     /// The current state of the playlist table.
     table_state: TableState,
     /// The audio output and playback controls.
-    player: Option<music::Player>,
+    player: Option<Player>,
     /// Index of the track currently being played.
     playing: Option<usize>,
     /// Playback volume from 0.0 (muted) to 1.0 (full volume).
@@ -45,9 +45,9 @@ pub struct App {
 
 impl App {
     /// Construct a new instance of [`App`].
-    pub fn new() -> Result<Self> {
-        let tracks = music::scan_tracks("music")?;
-        let player = match music::Player::new() {
+    pub fn new() -> color_eyre::Result<Self> {
+        let tracks = scan_tracks("music")?;
+        let player = match Player::new() {
             Ok(player) => {
                 player.set_volume(0.5);
                 Some(player)
@@ -85,7 +85,7 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         while self.running {
             terminal.draw(|frame| self.render(frame))?;
             self.handle_crossterm_events()?;
@@ -96,7 +96,7 @@ impl App {
 
     /// Clear the current track from the UI after playback finishes.
     fn tick(&mut self) {
-        if self.player.as_ref().is_some_and(music::Player::is_empty) && self.playing.is_some() {
+        if self.player.as_ref().is_some_and(Player::is_empty) && self.playing.is_some() {
             self.playing = None;
             self.message = "Track finished".to_string();
         }
@@ -141,7 +141,7 @@ impl App {
                 Cell::from(icon).fg(tailwind::GREEN.c300),
                 Cell::from(track.title.as_str()),
                 Cell::from(track.artist.as_deref().unwrap_or("Unknown artist")),
-                Cell::from(music::format_duration(track.duration)),
+                Cell::from(format_duration(track.duration)),
             ])
         });
         let header = Row::new(vec!["", "Title", "Artist", "Length"])
@@ -192,14 +192,14 @@ impl App {
         let position = if self.playing.is_some() {
             self.player
                 .as_ref()
-                .map_or(Duration::ZERO, music::Player::position)
+                .map_or(Duration::ZERO, Player::position)
         } else {
             Duration::ZERO
         };
         let duration = if self.playing.is_some() {
             self.player
                 .as_ref()
-                .map_or(Duration::ZERO, music::Player::duration)
+                .map_or(Duration::ZERO, Player::duration)
         } else {
             Duration::ZERO
         };
@@ -208,13 +208,12 @@ impl App {
         } else {
             (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0)
         };
-        let paused =
-            self.playing.is_none() || self.player.as_ref().is_none_or(music::Player::is_paused);
+        let paused = self.playing.is_none() || self.player.as_ref().is_none_or(Player::is_paused);
         let icon = if paused { "▶" } else { "⏸" };
         let label = format!(
             "{icon}  {} / {}",
-            music::format_duration(position),
-            music::format_duration(duration)
+            format_duration(position),
+            format_duration(duration)
         );
         frame.render_widget(
             Gauge::default()
@@ -279,7 +278,7 @@ impl App {
     }
 
     /// Reads Crossterm events and updates the application state.
-    fn handle_crossterm_events(&mut self) -> Result<()> {
+    fn handle_crossterm_events(&mut self) -> color_eyre::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key_event(key),

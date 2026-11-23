@@ -1,14 +1,19 @@
+#![allow(unused_imports)] // Keep later chapter imports ready from the start.
+
 #[path = "../src/music.rs"]
 #[allow(dead_code)] // Later chapters connect the prepared playback controls.
 mod music;
 
+use std::time::Duration;
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use music::{Player, Track, format_duration, scan_tracks};
 use ratatui::{
     DefaultTerminal, Frame,
-    layout::Alignment,
-    style::Stylize,
-    text::Line,
-    widgets::{Block, Paragraph},
+    layout::{Alignment, Constraint::*, Layout, Rect},
+    style::{Style, Stylize, palette::tailwind},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
 
 fn main() -> color_eyre::Result<()> {
@@ -22,14 +27,14 @@ fn main() -> color_eyre::Result<()> {
 /// The main application which holds the playlist and UI state.
 pub struct App {
     running: bool,
-    tracks: Vec<music::Track>,
+    tracks: Vec<Track>,
 }
 
 impl App {
     pub fn new() -> color_eyre::Result<Self> {
         Ok(Self {
             running: true,
-            tracks: music::scan_tracks("music")?,
+            tracks: scan_tracks("music")?,
         })
     }
 
@@ -53,7 +58,7 @@ impl App {
                     index + 1,
                     track.title,
                     track.artist.as_deref().unwrap_or("Unknown artist"),
-                    music::format_duration(track.duration)
+                    format_duration(track.duration)
                 )
             })
             .collect::<Vec<_>>()
