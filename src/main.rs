@@ -1,433 +1,270 @@
-use std::{collections::HashMap, time::Duration};
+mod music;
+
+use std::time::Duration;
 
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    layout::{Alignment, Constraint::*, Direction, Flex, Layout, Rect},
-    style::{palette::tailwind, Style, Stylize},
-    symbols::Marker,
-    text::Line,
-    widgets::{
-        Axis, Bar, BarChart, BarGroup, Block, BorderType, Chart, Clear, Dataset, GraphType,
-        RenderDirection, Row, Sparkline, Table, TableState,
-    },
     DefaultTerminal, Frame,
+    layout::{Alignment, Constraint::*, Layout, Rect},
+    style::{Style, Stylize, palette::tailwind},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Cell, Gauge, Paragraph, Row, Table, TableState, Wrap},
 };
-use sysinfo::{Disks, Networks, ProcessesToUpdate, System};
-use tui_textarea::TextArea;
 
-fn main() -> color_eyre::Result<()> {
+fn main() -> Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let result = App::new().run(terminal);
+    let result = App::new().and_then(|app| app.run(terminal));
     ratatui::restore();
     result
 }
 
 /// The main application which holds the state and logic of the application.
-#[derive(Debug, Default)]
 pub struct App {
     /// Is the application running?
     running: bool,
-    /// Is the user searching?
-    searching: bool,
-    /// The current state of the table.
+    /// The music files discovered in the local music folder.
+    tracks: Vec<music::Track>,
+    /// The current state of the playlist table.
     table_state: TableState,
-    /// The input area.
-    textarea: TextArea<'static>,
-
-    /// System information.
-    system: System,
-    networks: Networks,
-
-    /// Data collected from the system.
-    cpu_data: Vec<CpuData>,
-    memory_data: Vec<MemoryData>,
-    disk_data: Vec<DiskData>,
-    network_data: HashMap<String, Vec<NetworkData>>,
-}
-
-#[derive(Clone, Debug)]
-struct CpuData {
-    usage: f64,
-    point: f64,
-}
-
-#[derive(Clone, Debug)]
-struct MemoryData {
-    usage: f64,
-    point: f64,
-}
-
-#[derive(Clone, Debug)]
-struct DiskData {
-    name: String,
-    available: u64,
-    total: u64,
-}
-
-#[derive(Clone, Debug)]
-struct NetworkData {
-    total_packets: u64,
+    /// The audio output and playback controls.
+    player: Option<music::Player>,
+    /// Index of the track currently being played.
+    playing: Option<usize>,
+    /// Playback volume from 0.0 (muted) to 1.0 (full volume).
+    volume: f32,
+    /// Is the user searching the playlist?
+    searching: bool,
+    /// Search text entered by the user.
+    query: String,
+    /// A short message shown in the footer.
+    message: String,
 }
 
 impl App {
     /// Construct a new instance of [`App`].
-    pub fn new() -> Self {
-        Self {
-            running: true,
-            searching: false,
-            table_state: TableState::default(),
-            textarea: {
-                let mut textarea = TextArea::default();
-                textarea.set_block(Self::create_pane("Search"));
-                textarea
-            },
-            system: System::new_all(),
-            networks: Networks::new(),
-            cpu_data: Vec::new(),
-            memory_data: Vec::new(),
-            disk_data: Vec::new(),
-            network_data: HashMap::new(),
+    pub fn new() -> Result<Self> {
+        let tracks = music::scan_tracks("music")?;
+        let player = match music::Player::new() {
+            Ok(player) => {
+                player.set_volume(0.5);
+                Some(player)
+            }
+            Err(error) => {
+                // Keep the playlist usable even if this computer has no audio output.
+                eprintln!("Could not open an audio device: {error}");
+                None
+            }
+        };
+        let message = if tracks.is_empty() {
+            "Drop some MP3 files into music/ to get started".to_string()
+        } else if player.is_none() {
+            "Audio output unavailable; playlist browsing still works".to_string()
+        } else {
+            "Ready to play".to_string()
+        };
+
+        let mut table_state = TableState::default();
+        if !tracks.is_empty() {
+            table_state.select(Some(0));
         }
+
+        Ok(Self {
+            running: true,
+            tracks,
+            table_state,
+            player,
+            playing: None,
+            volume: 0.5,
+            searching: false,
+            query: String::new(),
+            message,
+        })
     }
 
     /// Run the application's main loop.
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        self.refresh_disks();
-        self.table_state.select(Some(0));
         while self.running {
-            terminal.draw(|frame| {
-                self.render(frame);
-                self.refresh(frame.count());
-            })?;
+            terminal.draw(|frame| self.render(frame))?;
             self.handle_crossterm_events()?;
+            self.tick();
         }
         Ok(())
     }
 
-    pub fn refresh_disks(&mut self) {
-        let disks = Disks::new_with_refreshed_list();
-        self.disk_data = disks
-            .list()
-            .iter()
-            .map(|disk| DiskData {
-                name: disk.name().to_string_lossy().to_string(),
-                available: disk.available_space(),
-                total: disk.total_space(),
-            })
-            .collect();
-    }
-
-    /// Refresh the system information.
-    pub fn refresh(&mut self, frame_count: usize) {
-        self.system.refresh_cpu_all();
-        let cpu_usage = self.system.global_cpu_usage();
-        self.cpu_data.push(CpuData {
-            usage: cpu_usage as f64,
-            point: frame_count as f64,
-        });
-
-        self.system.refresh_memory();
-        let memory_usage = self.system.used_memory();
-        self.memory_data.push(MemoryData {
-            usage: memory_usage as f64,
-            point: frame_count as f64,
-        });
-
-        self.networks.refresh(true);
-        for (interface_name, network) in &self.networks {
-            self.network_data
-                .entry(interface_name.clone())
-                .or_default()
-                .push(NetworkData {
-                    total_packets: network.packets_received() + network.packets_transmitted(),
-                });
-        }
-
-        if frame_count % 30 == 0 {
-            self.system.refresh_processes(ProcessesToUpdate::All, true);
+    /// Clear the current track from the UI after playback finishes.
+    fn tick(&mut self) {
+        if self.player.as_ref().is_some_and(music::Player::is_empty) && self.playing.is_some() {
+            self.playing = None;
+            self.message = "Track finished".to_string();
         }
     }
 
     /// Renders the user interface.
-    ///
-    /// Split the area into 6 parts: header, cpu, disk, memory, network, and process.
-    ///
-    /// The resulting layout is as follows:
-    ///
-    /// ```
-    /// ──────────────────────────Header──────────────────────────
-    // ┌CPU───────────────────────────────────────────────────────┐
-    // │                                                          │
-    // │                                                          │
-    // └──────────────────────────────────────────────────────────┘
-    // ┌Disks───────────┐┌Memory──────────────────────────────────┐
-    // │                ││                                        │
-    // │                ││                                        │
-    // │                ││                                        │
-    // └────────────────┘└────────────────────────────────────────┘
-    // ┌Network─────────────────────┐┌Processes───────────────────┐
-    // │                            ││                            │
-    // │                            ││                            │
-    // │                            ││                            │
-    // └────────────────────────────┘└────────────────────────────┘
-    // ```
     fn render(&mut self, frame: &mut Frame) {
-        let [header_area, main_area] = Layout::vertical([Length(1), Min(0)]).areas(frame.area());
-
-        let [cpu_area, middle, bottom] =
-            Layout::vertical([Percentage(25), Fill(1), Fill(1)]).areas(main_area);
-
-        let [disk_area, memory_area] = Layout::horizontal([Percentage(30), Fill(1)]).areas(middle);
-
-        let [network_area, process_area] = Layout::horizontal([Fill(1); 2]).areas(bottom);
+        let [header_area, body_area, footer_area] =
+            Layout::vertical([Length(3), Min(0), Length(3)]).areas(frame.area());
+        let [playlist_area, details_area] =
+            Layout::horizontal([Percentage(62), Fill(1)]).areas(body_area);
+        let [now_playing_area, progress_area] =
+            Layout::vertical([Fill(1), Length(5)]).areas(details_area);
 
         self.render_header(frame, header_area);
-        self.render_cpu(frame, cpu_area);
-        self.render_disks(frame, disk_area);
-        self.render_memory(frame, memory_area);
-        self.render_networks(frame, network_area);
-        self.render_processes(frame, process_area);
-        if self.searching {
-            self.render_search(frame, process_area);
-        }
+        self.render_playlist(frame, playlist_area);
+        self.render_now_playing(frame, now_playing_area);
+        self.render_progress(frame, progress_area);
+        self.render_footer(frame, footer_area);
     }
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
+        let title = Line::from("♫ Ratatune ♫")
+            .bold()
+            .fg(tailwind::BLUE.c200)
+            .centered();
         frame.render_widget(
-            Line::from("Ratatop")
-                .alignment(Alignment::Center)
-                .fg(tailwind::BLUE.c200)
-                .bg(tailwind::GRAY.c800)
-                .bold(),
+            Paragraph::new("An MP3 player built with Ratatui")
+                .block(Self::create_pane("Ratatune").title(title))
+                .alignment(Alignment::Center),
             area,
         );
     }
 
-    /// Renders a chart of CPU usage.
-    fn render_cpu(&self, frame: &mut Frame, area: Rect) {
-        let data = self
-            .cpu_data
-            .clone()
-            .into_iter()
-            .map(|v| (v.point, v.usage))
-            .collect::<Vec<_>>();
-
-        let datasets = vec![Dataset::default()
-            .marker(Marker::Braille)
-            .graph_type(GraphType::Line)
-            .style(tailwind::GREEN.c400)
-            .data(&data)];
-
-        let current_percentage = self.cpu_data.last().map(|v| v.usage).unwrap_or_default();
-        let current_percentage_line =
-            format!("{:.2}%", current_percentage).fg(match current_percentage {
-                0.0..=50.0 => tailwind::GREEN.c400,
-                50.0..=80.0 => tailwind::YELLOW.c300,
-                _ => tailwind::RED.c600,
-            });
-
-        let x_axis = Axis::default()
-            .title(current_percentage_line)
-            .bounds([0.0, self.cpu_data.len() as f64]);
-
-        let y_axis = Axis::default()
-            .bounds([0.0, 100.0])
-            .labels(vec![
-                "0%".fg(tailwind::GREEN.c400),
-                "50%".fg(tailwind::YELLOW.c300),
-                "100%".fg(tailwind::RED.c600),
+    fn render_playlist(&mut self, frame: &mut Frame, area: Rect) {
+        let visible = self.visible_tracks();
+        let rows = visible.iter().map(|&index| {
+            let track = &self.tracks[index];
+            let playing = self.playing == Some(index);
+            let icon = if playing { "♫" } else { " " };
+            Row::new(vec![
+                Cell::from(icon).fg(tailwind::GREEN.c300),
+                Cell::from(track.title.as_str()),
+                Cell::from(track.artist.as_deref().unwrap_or("Unknown artist")),
+                Cell::from(music::format_duration(track.duration)),
             ])
-            .style(tailwind::GRAY.c600);
-
-        let chart = Chart::new(datasets)
-            .block(Self::create_pane("CPU").title_alignment(Alignment::Right))
-            .style(Style::new().bg(tailwind::GRAY.c900))
-            .x_axis(x_axis)
-            .y_axis(y_axis);
-
-        frame.render_widget(chart, area);
+        });
+        let header = Row::new(vec!["", "Title", "Artist", "Length"])
+            .style(Style::new().fg(tailwind::YELLOW.c200).bold());
+        let widths = [Length(2), Percentage(42), Percentage(36), Length(8)];
+        let table = Table::new(rows, widths)
+            .header(header)
+            .row_highlight_style(Style::new().bg(tailwind::GRAY.c700).fg(tailwind::GRAY.c100));
+        frame.render_stateful_widget(
+            table.block(Self::create_pane("Playlist")),
+            area,
+            &mut self.table_state,
+        );
+        if visible.is_empty() {
+            frame.render_widget(
+                Paragraph::new("No MP3 files found in music/")
+                    .centered()
+                    .dim(),
+                area,
+            );
+        }
     }
 
-    /// Renders a bar chart of disk usage.
-    fn render_disks(&self, frame: &mut Frame, area: Rect) {
-        let bars = self
-            .disk_data
+    fn render_now_playing(&self, frame: &mut Frame, area: Rect) {
+        let content = self
+            .playing
+            .and_then(|index| self.tracks.get(index))
+            .map_or_else(
+                || "Nothing is playing yet\n\nSelect a track and press Enter".to_string(),
+                |track| {
+                    format!(
+                        "♫  {}\n\n{}\n\n{}",
+                        track.title,
+                        track.artist.as_deref().unwrap_or("Unknown artist"),
+                        track.album.as_deref().unwrap_or("Unknown album")
+                    )
+                },
+            );
+        frame.render_widget(
+            Paragraph::new(content)
+                .block(Self::create_pane("Now Playing"))
+                .wrap(Wrap { trim: true }),
+            area,
+        );
+    }
+
+    fn render_progress(&self, frame: &mut Frame, area: Rect) {
+        let position = if self.playing.is_some() {
+            self.player
+                .as_ref()
+                .map_or(Duration::ZERO, music::Player::position)
+        } else {
+            Duration::ZERO
+        };
+        let duration = if self.playing.is_some() {
+            self.player
+                .as_ref()
+                .map_or(Duration::ZERO, music::Player::duration)
+        } else {
+            Duration::ZERO
+        };
+        let ratio = if duration.is_zero() {
+            0.0
+        } else {
+            (position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0)
+        };
+        let paused =
+            self.playing.is_none() || self.player.as_ref().is_none_or(music::Player::is_paused);
+        let icon = if paused { "▶" } else { "⏸" };
+        let label = format!(
+            "{icon}  {} / {}",
+            music::format_duration(position),
+            music::format_duration(duration)
+        );
+        frame.render_widget(
+            Gauge::default()
+                .block(Self::create_pane("Progress"))
+                .gauge_style(Style::new().fg(tailwind::GREEN.c400))
+                .ratio(ratio)
+                .label(label),
+            area,
+        );
+    }
+
+    fn render_footer(&self, frame: &mut Frame, area: Rect) {
+        let message = if self.searching {
+            format!("Search: {}  (Enter to finish, Esc to clear)", self.query)
+        } else {
+            format!(
+                "{}  |  ↑/↓ select  Enter play  Space pause  n next  +/- volume  / search  q quit",
+                self.message
+            )
+        };
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![Span::styled(
+                message,
+                Style::new().fg(tailwind::GRAY.c200),
+            )]))
+            .block(Self::create_pane("Controls"))
+            .alignment(Alignment::Center),
+            area,
+        );
+    }
+
+    /// Return indices of tracks matching the current search query.
+    fn visible_tracks(&self) -> Vec<usize> {
+        let query = self.query.to_lowercase();
+        self.tracks
             .iter()
-            .map(|disk| {
-                let name = disk.name.rsplit('/').next().unwrap().to_string();
-                let percent = (disk.available as f64 / disk.total as f64 * 100.0) as u64;
-                let style = match percent {
-                    0..=50 => tailwind::GREEN.c400,
-                    51..=80 => tailwind::YELLOW.c300,
-                    _ => tailwind::RED.c600,
-                };
-                Bar::default()
-                    .label(name.fg(tailwind::BLUE.c100).into())
-                    .value(percent)
-                    .style(style)
+            .enumerate()
+            .filter(|(_, track)| {
+                query.is_empty()
+                    || track.title.to_lowercase().contains(&query)
+                    || track
+                        .artist
+                        .as_deref()
+                        .is_some_and(|artist| artist.to_lowercase().contains(&query))
             })
-            .collect::<Vec<_>>();
-
-        let data = BarGroup::default().bars(&bars);
-        let bar_chart = BarChart::default()
-            .block(Self::create_pane("Disks"))
-            .style(Style::new().bg(tailwind::GRAY.c900))
-            .direction(Direction::Horizontal)
-            .data(data)
-            .bar_gap(1)
-            .bar_width(1)
-            .bar_style(Style::new().on_black());
-
-        frame.render_widget(bar_chart, area);
-    }
-
-    /// Renders a chart of memory usage.
-    fn render_memory(&self, frame: &mut Frame, area: Rect) {
-        let current_percentage =
-            self.system.used_memory() as f64 / self.system.total_memory() as f64 * 100.0;
-
-        let current_percentage_line =
-            format!("{:.2}%", current_percentage).fg(match current_percentage {
-                0.0..=50.0 => tailwind::GREEN.c400,
-                50.0..=80.0 => tailwind::YELLOW.c300,
-                _ => tailwind::RED.c600,
-            });
-
-        let data = self
-            .memory_data
-            .clone()
-            .into_iter()
-            .map(|v| (v.point, v.usage))
-            .collect::<Vec<_>>();
-
-        let datasets = vec![Dataset::default()
-            .name(current_percentage_line)
-            .marker(Marker::Bar)
-            .graph_type(GraphType::Line)
-            .style(tailwind::BLUE.c400)
-            .data(&data)];
-
-        let x_axis = Axis::default().bounds([0.0, self.memory_data.len() as f64]);
-        let y_axis = Axis::default().bounds([0.0, self.system.total_memory() as f64]);
-
-        let chart = Chart::new(datasets)
-            .style(Style::new().bg(tailwind::GRAY.c900))
-            .block(Self::create_pane("Memory"))
-            .x_axis(x_axis)
-            .y_axis(y_axis);
-
-        frame.render_widget(chart, area);
-    }
-
-    /// Renders a sparkline for each network interface.
-    fn render_networks(&self, frame: &mut Frame, area: Rect) {
-        let block = Self::create_pane("Network");
-        let inner_block = block.inner(area);
-        frame.render_widget(block, area);
-
-        let mut network_data = self.network_data.iter().collect::<Vec<_>>();
-        network_data.sort_by(|(name1, _), (name2, _)| name1.cmp(name2));
-
-        let longest_name = network_data
-            .iter()
-            .map(|(name, _)| name.len())
-            .max()
-            .unwrap_or(0);
-
-        let [name_area, data_area] = Layout::horizontal([Length(longest_name as u16), Fill(1)])
-            .spacing(1)
-            .areas(inner_block);
-
-        for (((name, data), name_area), data_area) in network_data
-            .into_iter()
-            .zip(name_area.rows())
-            .zip(data_area.rows())
-        {
-            let line = Line::from(name.clone()).fg(tailwind::BLUE.c200);
-            frame.render_widget(line, name_area);
-
-            let data = data
-                .iter()
-                .rev()
-                .take(data_area.width as usize)
-                .rev()
-                .map(|v| v.total_packets)
-                .collect::<Vec<_>>();
-
-            let sparkline = Sparkline::default()
-                .data(data)
-                .direction(RenderDirection::LeftToRight)
-                .style(tailwind::GREEN.c400);
-
-            frame.render_widget(sparkline, data_area);
-        }
-    }
-
-    /// Renders a table of processes.
-    fn render_processes(&mut self, frame: &mut Frame, area: Rect) {
-        let header = Row::new(vec!["Pid", "Cmd", "CPU%", "Mem%"]).style(tailwind::YELLOW.c200);
-
-        let widths = [Length(10), Fill(2), Fill(1), Fill(1)];
-        let mut rows = Vec::new();
-        for (pid, process) in self.system.processes() {
-            let row = vec![
-                pid.to_string(),
-                process.name().to_string_lossy().to_string(),
-                format!("{:.2}", process.cpu_usage()),
-                format!(
-                    "{:.2}",
-                    process.memory() as f64 / self.system.total_memory() as f64 * 100.0
-                ),
-            ];
-            rows.push(row);
-        }
-
-        let text = self.textarea.lines().first().unwrap();
-        rows.retain(|row| {
-            row.iter()
-                .any(|cell| cell.to_lowercase().contains(&text.to_lowercase()))
-        });
-
-        rows.sort_by(|a, b| {
-            a[2].parse::<f64>()
-                .unwrap_or_default()
-                .partial_cmp(&b[2].parse::<f64>().unwrap_or_default())
-                .unwrap()
-                .reverse()
-        });
-
-        let table = Table::new(
-            rows.into_iter()
-                .map(|v| Row::new(v).fg(tailwind::GRAY.c400))
-                .collect::<Vec<_>>(),
-            widths,
-        )
-        .header(header)
-        .style(tailwind::GRAY.c900)
-        .row_highlight_style(Style::new().bg(tailwind::GRAY.c800).fg(tailwind::BLUE.c200))
-        .highlight_symbol("> ")
-        .block(Self::create_pane("Processes"));
-
-        frame.render_stateful_widget(table, area, &mut self.table_state);
-    }
-
-    /// Renders a popup for search input.
-    fn render_search(&mut self, frame: &mut Frame<'_>, area: Rect) {
-        let [search_area] = Layout::horizontal([Percentage(90)])
-            .flex(Flex::Center)
-            .areas(area);
-        let [search_area] = Layout::vertical([Max(3)])
-            .flex(Flex::Center)
-            .areas(search_area);
-
-        frame.render_widget(Clear, search_area);
-        frame.render_widget(&self.textarea, search_area);
+            .map(|(index, _)| index)
+            .collect()
     }
 
     /// Creates a bordered block with a title.
-    fn create_pane(title: &str) -> Block {
+    fn create_pane(title: &str) -> Block<'_> {
         let title = Line::from_iter([
             "┤ ".fg(tailwind::GRAY.c700),
             title.fg(tailwind::BLUE.c200),
@@ -436,53 +273,152 @@ impl App {
         Block::bordered()
             .border_type(BorderType::Rounded)
             .title(title)
-            .title_alignment(Alignment::Left)
             .border_style(tailwind::GRAY.c700)
             .style(Style::new().bg(tailwind::GRAY.c900))
     }
 
-    /// Reads the crossterm events and updates the state of [`App`].
+    /// Reads Crossterm events and updates the application state.
     fn handle_crossterm_events(&mut self) -> Result<()> {
-        // Poll every 1/60th of a second in non-blocking mode.
-        let timeout = Duration::from_secs_f32(1.0 / 60.0);
-        if event::poll(timeout)? {
+        if event::poll(Duration::from_millis(100))? {
             match event::read()? {
-                // it's important to check KeyEventKind::Press to avoid handling key release events
                 Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key_event(key),
-                Event::Mouse(_) => {}
-                Event::Resize(_, _) => {}
+                Event::Mouse(_) | Event::Resize(_, _) => {}
                 _ => {}
             }
         }
         Ok(())
     }
 
-    /// Handles the key events and updates the state of [`App`].
+    /// Handles keyboard input and updates the app or player state.
     fn on_key_event(&mut self, key: KeyEvent) {
         if self.searching {
-            if key.code == KeyCode::Enter {
-                self.searching = false;
-                return;
-            } else {
-                self.textarea.input(key);
-            }
+            self.on_search_key(key);
+            return;
         }
+
         match (key.modifiers, key.code) {
             (_, KeyCode::Esc | KeyCode::Char('q'))
-            | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
-            (_, KeyCode::Char('j') | KeyCode::Down) => {
-                self.table_state.select_next();
-            }
-            (_, KeyCode::Char('k') | KeyCode::Up) => {
-                self.table_state.select_previous();
-            }
+            | (KeyModifiers::CONTROL, KeyCode::Char('c' | 'C')) => self.quit(),
+            (_, KeyCode::Down | KeyCode::Char('j')) => self.select_next(),
+            (_, KeyCode::Up | KeyCode::Char('k')) => self.select_previous(),
+            (_, KeyCode::Enter) => self.play_selected(),
+            (_, KeyCode::Char(' ')) => self.toggle_playback(),
+            (_, KeyCode::Char('n')) => self.play_next(),
+            (_, KeyCode::Char('+') | KeyCode::Char('=')) => self.adjust_volume(0.1),
+            (_, KeyCode::Char('-')) => self.adjust_volume(-0.1),
             (_, KeyCode::Char('/')) => {
-                self.textarea.select_all();
-                self.textarea.delete_line_by_end();
-                self.searching = !self.searching;
+                self.searching = true;
+                self.query.clear();
             }
             _ => {}
         }
+    }
+
+    fn on_search_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.query.clear();
+                self.searching = false;
+                self.table_state
+                    .select((!self.tracks.is_empty()).then_some(0));
+            }
+            KeyCode::Enter => self.searching = false,
+            KeyCode::Backspace => {
+                self.query.pop();
+                self.table_state
+                    .select((!self.visible_tracks().is_empty()).then_some(0));
+            }
+            KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.query.push(character);
+                self.table_state
+                    .select((!self.visible_tracks().is_empty()).then_some(0));
+            }
+            _ => {}
+        }
+    }
+
+    fn select_next(&mut self) {
+        let count = self.visible_tracks().len();
+        if count > 0 {
+            let selected = self.table_state.selected().unwrap_or(0);
+            self.table_state.select(Some((selected + 1) % count));
+        }
+    }
+
+    fn select_previous(&mut self) {
+        let count = self.visible_tracks().len();
+        if count > 0 {
+            let selected = self.table_state.selected().unwrap_or(0);
+            self.table_state
+                .select(Some((selected + count - 1) % count));
+        }
+    }
+
+    fn play_selected(&mut self) {
+        let Some(index) = self
+            .table_state
+            .selected()
+            .and_then(|selected| self.visible_tracks().get(selected).copied())
+        else {
+            self.message = "No track selected".to_string();
+            return;
+        };
+        self.play_track(index);
+    }
+
+    fn play_track(&mut self, index: usize) {
+        self.playing = None;
+        let Some(player) = &mut self.player else {
+            self.message = "Could not open an audio output device".to_string();
+            return;
+        };
+        match player.play(&self.tracks[index]) {
+            Ok(()) => {
+                self.playing = Some(index);
+                self.message = format!("Playing {}", self.tracks[index].title);
+            }
+            Err(error) => self.message = format!("Could not play track: {error}"),
+        }
+    }
+
+    fn toggle_playback(&mut self) {
+        if self.playing.is_none() {
+            self.play_selected();
+            return;
+        }
+        if let Some(player) = &self.player {
+            if player.is_paused() {
+                player.resume();
+                self.message = "Playback resumed".to_string();
+            } else {
+                player.pause();
+                self.message = "Playback paused".to_string();
+            }
+        }
+    }
+
+    fn play_next(&mut self) {
+        let visible = self.visible_tracks();
+        if visible.is_empty() {
+            return;
+        }
+        let selected = self.table_state.selected().unwrap_or(0);
+        let next_position = self
+            .playing
+            .and_then(|playing| visible.iter().position(|&index| index == playing))
+            .map_or((selected + 1) % visible.len(), |position| {
+                (position + 1) % visible.len()
+            });
+        self.table_state.select(Some(next_position));
+        self.play_track(visible[next_position]);
+    }
+
+    fn adjust_volume(&mut self, change: f32) {
+        self.volume = (self.volume + change).clamp(0.0, 1.0);
+        if let Some(player) = &self.player {
+            player.set_volume(self.volume);
+        }
+        self.message = format!("Volume: {:.0}%", self.volume * 100.0);
     }
 
     /// Set running to false to quit the application.

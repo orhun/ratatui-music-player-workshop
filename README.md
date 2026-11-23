@@ -1,41 +1,45 @@
-# Becoming a Terminal Chef with Ratatui 👨‍🍳🐀
+![](assets/workshop-banner.png)
 
-> Your terminal can do more than you think and this workshop shows you how. [Ratatui](https://ratatui.rs) is the leading framework for building terminal user interfaces (TUIs) in Rust. This workshop by [Orhun Parmaksız](https://github.com/orhun), the framework's maintainer, will get you cooking up some tasty terminal UIs in no time.
+In this hands-on workshop, you will use [Ratatui](https://ratatui.rs), the Rust framework for building terminal user interfaces, to build **Ratatune**: a terminal music player for local MP3 files.
 
 ### What will you build?
 
-"**Ratatop**", a terminal resource monitor application that displays system information in real-time.
-
-![](assets/demo.gif)
+**Ratatune** scans the `music/` folder, displays the MP3 files it finds, and lets you browse, search, play, and pause your music. The finished app shows the current track and playback progress!
 
 ### Who is this workshop for?
 
-The workshop is intended for Rust beginners who want to learn how to build TUIs with Ratatui.
-Previous experience with Rust is not required, but it is recommended to have a basic understanding of the language.
+The workshop is intended for Rust beginners who want to learn how to build TUIs with Ratatui. Previous experience with Rust is not required, but a basic understanding of the language is recommended.
 
 - If you are already familiar with Rust, you can still follow along and learn about Ratatui.
-- If you are already familiar with Ratatui, you can follow the _bonus tracks_ and learn something new!
+- If you are already familiar with Ratatui, follow the _bonus tracks_ and add more features!
 
 #### Necessary Tools
 
+- [Rust](https://www.rust-lang.org/tools/install) and `cargo`
 - [git](https://git-scm.com/)
-- [cargo](https://www.rust-lang.org/tools/install)
+- A code editor with Rust support
+- A terminal emulator
+- A few local MP3 files in the `music/` folder
+- Headphones or speakers for playback
+
+> [!NOTE]
+> On Linux, install the ALSA and PulseAudio development packages before building the audio dependencies (for example, `libasound2-dev` and `libpulse-dev` on Debian/Ubuntu).
 
 > [!TIP]
 > It is recommended to disable AI completions in your code editor to get a better understanding of the code you write.
 
 ### Chapters
 
-The workshop is split up into 5 chapters and aims to be completed **in 3 hours.**
+The workshop is split into 5 chapters and aims to be completed **in 3 hours**.
 
-| Duration   | Chapter       | Topic                                                      |
-| ---------- | ------------- | ---------------------------------------------------------- |
-| **10 min** | **Chapter 1** | **Setup** - Install Rust, cargo-generate, create project   |
-| **15 min** | **Chapter 2** | **Manage State** - Use `sysinfo`, refresh data             |
-| **30 min** | **Chapter 3** | **Layout & Styling** - Define UI structure, apply styles   |
-| **45 min** | **Chapter 4** | **Widgets** - Render charts, bar charts, sparklines, table |
-| **20 min** | **Chapter 5** | **Interactivity** - Handle inputs, scroll table, search    |
-| **60 min** | 🧀            | **Q&A** / **Debugging** / **Extras**                       |
+| Duration   | Chapter       | Topic                                                             |
+| ---------- | ------------- | ----------------------------------------------------------------- |
+| **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template |
+| **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files      |
+| **30 min** | **Chapter 3** | **Layout & Styling** - Arrange the playlist, player, and controls |
+| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details, and progress gauge   |
+| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search, and control playback        |
+| **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                        |
 
 ### Walkthrough
 
@@ -48,20 +52,17 @@ Use the [slides](presentation.md) to follow along with the workshop.
 > presenterm -c assets/presenterm.yml presentation.md
 > ```
 
-Start with installing [`cargo-generate`](https://github.com/cargo-generate/cargo-generate) and creating a new Ratatui project via [`templates`](https://github.com/ratatui/templates):
+Generate the workshop starter directly from this repository. The template configuration exposes `template/` as the only subtemplate, so you do not need to pass its path. Select `template` when prompted, then enter `ratatune` as the project name:
 
 ```sh
-cargo install cargo-generate
+cargo install --locked cargo-generate
+cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
+cd ratatune
+cargo run
 ```
+The generated project starts at Chapter 1, with `music.rs` already wired in. Put your MP3 files in its `music/` folder. Before the workshop, run `cargo build` and confirm your laptop can play audio.
 
-```sh
-# select the "simple" template
-cargo generate ratatui/templates
-```
-
-Then follow the chapters to build the **Ratatop** application. If you get stuck, check out the [examples](./examples) folder which contains the completed code for each chapter. We recommend to try it yourself first and only refer to the example code in case you run into issues.
-
-The final code can be found in the [src/main.rs](./src/main.rs) file.
+If you get stuck, check the [chapter examples](./examples), which contain the completed code for each step. Try the exercises first and use the examples when you need a reference. The final app is in [src/main.rs](./src/main.rs), with the prepared music support in [template/src/music.rs](./template/src/music.rs).
 
 ## Show and tell! 🧀
 

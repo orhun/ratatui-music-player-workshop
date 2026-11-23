@@ -1,46 +1,39 @@
-use std::time::Duration;
+#[path = "../src/music.rs"]
+#[allow(dead_code)] // Later chapters connect the prepared playback controls.
+mod music;
 
-use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
-    layout::{Alignment, Constraint::*, Layout, Rect},
+    layout::{Alignment, Constraint::*, Layout},
     style::{Style, Stylize, palette::tailwind},
     text::Line,
-    widgets::{Block, BorderType},
+    widgets::{Block, BorderType, Paragraph},
 };
-use sysinfo::System;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let result = App::new().run(terminal);
+    let result = App::new()?.run(terminal);
     ratatui::restore();
     result
 }
 
-/// The main application which holds the state and logic of the application.
-#[derive(Debug, Default)]
+/// The main application which holds the playlist and UI state.
 pub struct App {
-    /// Is the application running?
     running: bool,
-
-    /// System information.
-    system: System,
+    tracks: Vec<music::Track>,
 }
 
 impl App {
-    /// Construct a new instance of [`App`].
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> color_eyre::Result<Self> {
+        Ok(Self {
             running: true,
-            system: System::new_all(),
-        }
+            tracks: music::scan_tracks("music")?,
+        })
     }
 
-    /// Run the application's main loop.
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        self.refresh();
+    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         while self.running {
             terminal.draw(|frame| self.render(frame))?;
             self.handle_crossterm_events()?;
@@ -48,126 +41,66 @@ impl App {
         Ok(())
     }
 
-    /// Refresh the system information.
-    pub fn refresh(&mut self) {
-        self.system.refresh_all();
-    }
-
-    /// Renders the user interface.
-    ///
-    /// Split the area into 6 parts: header, cpu, disk, memory, network, and process.
-    ///
-    /// The resulting layout is as follows:
-    ///
-    /// ```
-    /// ──────────────────────────Header──────────────────────────
-    // ┌CPU───────────────────────────────────────────────────────┐
-    // │                                                          │
-    // │                                                          │
-    // └──────────────────────────────────────────────────────────┘
-    // ┌Disks───────────┐┌Memory──────────────────────────────────┐
-    // │                ││                                        │
-    // │                ││                                        │
-    // │                ││                                        │
-    // └────────────────┘└────────────────────────────────────────┘
-    // ┌Network─────────────────────┐┌Processes───────────────────┐
-    // │                            ││                            │
-    // │                            ││                            │
-    // │                            ││                            │
-    // └────────────────────────────┘└────────────────────────────┘
-    // ```
+    /// Split the terminal into a header, playlist, player panel, and footer.
     fn render(&mut self, frame: &mut Frame) {
-        let [header_area, main_area] = Layout::vertical([Length(1), Min(0)]).areas(frame.area());
+        let [header_area, content_area, footer_area] =
+            Layout::vertical([Length(3), Min(0), Length(3)]).areas(frame.area());
+        let [playlist_area, player_area] =
+            Layout::horizontal([Percentage(62), Fill(1)]).areas(content_area);
+        let [now_playing_area, progress_area] =
+            Layout::vertical([Fill(1), Length(5)]).areas(player_area);
 
-        let [cpu_area, middle, bottom] =
-            Layout::vertical([Percentage(25), Fill(1), Fill(1)]).areas(main_area);
-
-        let [disk_area, memory_area] = Layout::horizontal([Percentage(30), Fill(1)]).areas(middle);
-
-        let [network_area, process_area] = Layout::horizontal([Fill(1); 2]).areas(bottom);
-
-        self.render_header(frame, header_area);
-        self.render_cpu(frame, cpu_area);
-        self.render_disks(frame, disk_area);
-        self.render_memory(frame, memory_area);
-        self.render_networks(frame, network_area);
-        self.render_processes(frame, process_area);
-    }
-
-    fn render_header(&self, frame: &mut Frame, area: Rect) {
         frame.render_widget(
-            Line::from("Ratatop")
-                .alignment(Alignment::Center)
-                .fg(tailwind::BLUE.c200)
-                .bg(tailwind::GRAY.c800)
-                .bold(),
-            area,
+            Paragraph::new("♫  MP3 player built with Ratatui")
+                .block(Self::create_pane("Ratatune"))
+                .alignment(Alignment::Center),
+            header_area,
         );
-    }
-
-    fn render_cpu(&self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(Self::create_pane("CPU"), area);
-    }
-
-    fn render_disks(&self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(Self::create_pane("Disks"), area);
-    }
-
-    fn render_memory(&self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(Self::create_pane("Memory"), area);
-    }
-
-    fn render_networks(&self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(Self::create_pane("Network"), area);
-    }
-
-    fn render_processes(&self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(Self::create_pane("Processes"), area);
+        frame.render_widget(
+            Paragraph::new(format!("{} tracks found in music/", self.tracks.len()))
+                .block(Self::create_pane("Playlist")),
+            playlist_area,
+        );
+        frame.render_widget(
+            Paragraph::new("Select a track to start listening")
+                .block(Self::create_pane("Now Playing")),
+            now_playing_area,
+        );
+        frame.render_widget(Self::create_pane("Progress"), progress_area);
+        frame.render_widget(
+            Paragraph::new("↑/↓ select  Enter play  Space pause  q quit")
+                .block(Self::create_pane("Controls"))
+                .alignment(Alignment::Center),
+            footer_area,
+        );
     }
 
     /// Creates a bordered block with a title.
     fn create_pane(title: &str) -> Block<'_> {
-        let title = Line::from_iter([
-            "┤ ".fg(tailwind::GRAY.c700),
-            title.fg(tailwind::BLUE.c200),
-            " ├".fg(tailwind::GRAY.c700),
-        ]);
         Block::bordered()
             .border_type(BorderType::Rounded)
-            .title(title)
-            .title_alignment(Alignment::Left)
+            .title(Line::from(title).fg(tailwind::BLUE.c200).bold())
             .border_style(tailwind::GRAY.c700)
             .style(Style::new().bg(tailwind::GRAY.c900))
     }
 
-    /// Reads the crossterm events and updates the state of [`App`].
-    fn handle_crossterm_events(&mut self) -> Result<()> {
-        // Poll every 1/60th of a second in non-blocking mode.
-        let timeout = Duration::from_secs_f32(1.0 / 60.0);
-        if event::poll(timeout)? {
-            match event::read()? {
-                // it's important to check KeyEventKind::Press to avoid handling key release events
-                Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key_event(key),
-                Event::Mouse(_) => {}
-                Event::Resize(_, _) => {}
-                _ => {}
-            }
+    fn handle_crossterm_events(&mut self) -> color_eyre::Result<()> {
+        match event::read()? {
+            Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key_event(key),
+            Event::Mouse(_) => {}
+            Event::Resize(_, _) => {}
+            _ => {}
         }
         Ok(())
     }
 
-    /// Handles the key events and updates the state of [`App`].
     fn on_key_event(&mut self, key: KeyEvent) {
         match (key.modifiers, key.code) {
             (_, KeyCode::Esc | KeyCode::Char('q'))
-            | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
-            // Add other key handlers here.
+            | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => {
+                self.running = false;
+            }
             _ => {}
         }
-    }
-
-    /// Set running to false to quit the application.
-    fn quit(&mut self) {
-        self.running = false;
     }
 }

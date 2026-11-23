@@ -1,0 +1,22 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+description = "An MP3 player built with Ratatui"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+color-eyre = "0.6.5"
+crossterm = "0.29.0"
+lofty = "0.25.5"
+ratatui = "0.30.2"
+rodio = "0.23.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = { version = "0.18.2", features = ["pulseaudio"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

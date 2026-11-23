@@ -1,6 +1,6 @@
 ---
-title: Becoming a Terminal Chef with Ratatui
-sub_title: RustForge 2025
+title: Building a terminal music player with Ratatui
+sub_title: Rust Dortmund 2026
 author: Orhun Parmaksız
 theme:
   name: catppuccin-mocha
@@ -10,18 +10,6 @@ theme:
       left: "@orhundev"
       right: ""
 ---
-
-<!-- alignment: center -->
-
-![image:width:50%](assets/rustforge.png)
-
-![image:width:15%](assets/rat-chef.gif)
-
-`Welcome to the workshop!`
-
-[](https://github.com/orhun/rustforge2025-ratatui-workshop)
-
-<!-- end_slide -->
 
 <!-- column_layout: [1, 1] -->
 
@@ -37,19 +25,29 @@ theme:
 
 🐭 Lead maintainer of **Ratatui**
 
-🇹🇷 Based in **Ankara, Türkiye**
+🧠 Rust Developer Advocate at JetBrains
 
 📦 **Arch Linux** (btw)
-
-🎹 Wannabe musician
-
-(My talk "Rust Rocks" tomorrow!!!)
 
 ---
 
 `https://github.com/orhun`
 
 `https://youtube.com/@orhundev`
+
+<!-- end_slide -->
+
+<!-- alignment: center -->
+
+<!-- new_lines: 3 -->
+
+![image:width:15%](assets/rat-chef.gif)
+
+# We will build:
+
+`A terminal MP3 player with Ratatui`
+
+[](https://github.com/orhun/ratatui-music-player-workshop)
 
 <!-- end_slide -->
 
@@ -69,13 +67,13 @@ theme:
 
 - Get started with Rust & Ratatui
 - Grasp the terminal UI concepts
-- Build a real-world application
+- Build a local MP3 player for the terminal
 
 <!-- pause -->
 
 ## Structure
 
-- 3 hours in total
+- 2 hours in total
 - Split up into 5 chapters
 - Hands-on coding
 
@@ -85,13 +83,13 @@ theme:
 
 - Laptop with Rust installed
 - Code editor with Rust support
-- Terminal emulator (Wezterm, etc.)
+- Terminal emulator
 
 <!-- pause -->
 
 <!-- end_slide -->
 
-# What are we gonna cook today?
+# What are we gonna cook today? 👨‍🍳
 
 ```bash +exec +acquire_terminal
 cargo run
@@ -99,16 +97,44 @@ cargo run
 
 <!-- end_slide -->
 
+# Ratatune 🎶
+
+- Scan local MP3s from `music/`
+- Browse a playlist
+- Play, pause and skip tracks
+- See track details and playback progress
+
+<!-- pause -->
+
+## Notes
+
+- Already prepared:
+  - File scanning
+  - MP3 metadata
+  - Audio output
+- We will focus on:
+  - Application state
+  - Layout
+  - Widgets
+  - Input
+- No network or streaming services
+
+<!-- pause -->
+
+`Use AI as less as possible to get the most out of the workshop!`
+
+<!-- end_slide -->
+
 # Schedule
 
-| Duration   | Chapter       | Topic                                                      |
-| ---------- | ------------- | ---------------------------------------------------------- |
-| **10 min** | **Chapter 1** | **Setup** - Install Rust, cargo-generate, create project   |
-| **15 min** | **Chapter 2** | **Manage State** - Use `sysinfo`, refresh data             |
-| **30 min** | **Chapter 3** | **Layout & Styling** - Define UI structure, apply styles   |
-| **45 min** | **Chapter 4** | **Widgets** - Render charts, bar charts, sparklines, table |
-| **20 min** | **Chapter 5** | **Interactivity** - Handle inputs, scroll table, search    |
-| **60 min** | 🧀            | **Q&A** / **Debugging** / **Extras**                       |
+| Duration   | Chapter       | Topic                                                              |
+| ---------- | ------------- | ------------------------------------------------------------------ |
+| **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template |
+| **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files       |
+| **30 min** | **Chapter 3** | **Layout & Styling** - Arrange the playlist, player and controls   |
+| **45 min** | **Chapter 4** | **Widgets** - Render a table, track details and progress gauge    |
+| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback          |
+| **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                         |
 
 <!-- end_slide -->
 
@@ -124,19 +150,27 @@ cargo run
 
 • Install `cargo-generate`
 
-• Generate a new Ratatui project
+• Generate a project from this workshop repository
+
+• Select `template` when prompted, then enter `ratatune` as the project name
 
 ```bash
-$ cargo generate ratatui/templates
+cargo install --locked cargo-generate
+cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
+cd ratatune
 ```
+
+• The starter already includes `music.rs` and the audio dependencies
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Change the text
+• Change the title and colors
 
-• Change the colors
+• Add a `music/` folder with a few MP3 files
+
+• Run `cargo build` once and check audio output before the workshop
 
 <!-- end_slide -->
 
@@ -148,17 +182,21 @@ $ cargo generate ratatui/templates
 
 ## Objectives
 
-• Add `sysinfo` dependency
+• Use the prepared `music.rs` module to scan local MP3s
 
-• Store `System` struct
+• Store the list of `Track`s in `App`
 
-• Refresh the data every 16ms
+• Show the title, artist and track length
+
+• Show a helpful empty-playlist message
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Create `App::refresh` method
+• Show how many tracks were found
+
+• Add an error message when `music/` cannot be read
 
 <!-- end_slide -->
 
@@ -170,19 +208,21 @@ $ cargo generate ratatui/templates
 
 ## Objectives
 
-• Lay out the main application blocks
+• Split the screen into a header, playlist, player and footer
 
-• CPU, Disks, Memory, Network, Processes
+• Show the playlist beside the now-playing panel
+
+• Add a progress area below the track details
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Add a one line header to the top with your app name
+• Add a one-line title at the top
 
-• Refactor rendering each block into its own function
+• Refactor each area into its own render function
 
-• Render pretty borders and header
+• Render rounded borders and a styled header
 
 <!-- end_slide -->
 
@@ -194,21 +234,23 @@ $ cargo generate ratatui/templates
 
 ## Objectives
 
-• Render CPU via `Chart` widget
+• Render tracks in a `Table`
 
-• Customize the `Chart` widget
+• Highlight the selected track
 
-• Render processes via `Table` widget
+• Show title, artist, album and duration
+
+• Render playback progress with a `Gauge`
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Render memory (`Chart`)
+• Show a playing icon beside the current track
 
-• Render disks (`BarChart`)
+• Adjust volume with `+`/`-`
 
-• Render network (`Sparkline`)
+• Add a visualizer with `Sparkline`
 
 <!-- end_slide -->
 
@@ -220,19 +262,23 @@ $ cargo generate ratatui/templates
 
 ## Objectives
 
-• Scroll the `Table` when `j`/`k` pressed
+• Move through the playlist with `j`/`k` or arrow keys
 
-• Add text input via `tui-textarea`
+• Play the selected track with `Enter`
 
-• Show popup when `/` pressed
+• Pause and resume with `Space`
+
+• Search the playlist with `/`
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Search processes
+• Play the next track with `n`
 
-• Kill the selected process
+• Add previous, volume, repeat, or shuffle controls
+
+• Seek within the current track
 
 <!-- end_slide -->
 
@@ -246,7 +292,7 @@ $ cargo generate ratatui/templates
 
 • Show & tell!
 
-• Start building your own app!
+• Start building your own Ratatui app!
 
 <!-- column: 1 -->
 
