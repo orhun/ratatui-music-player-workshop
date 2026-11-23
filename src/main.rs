@@ -124,7 +124,13 @@ impl App {
             .centered();
         frame.render_widget(
             Paragraph::new("An MP3 player built with Ratatui")
-                .block(Self::create_pane("Ratatune").title(title))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(title)
+                        .border_style(tailwind::GRAY.c700)
+                        .style(Style::new().bg(tailwind::GRAY.c900)),
+                )
                 .alignment(Alignment::Center),
             area,
         );

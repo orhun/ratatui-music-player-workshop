@@ -127,50 +127,40 @@ cargo run
 
 # Schedule
 
-| Duration   | Chapter       | Topic                                                                  |
-| ---------- | ------------- | ---------------------------------------------------------------------- |
-| **10 min** | **Chapter 1** | **Setup** - Generate a project from the Ratatune workshop template     |
-| **15 min** | **Chapter 2** | **Manage State** - Model a playlist and load local MP3 files           |
-| **30 min** | **Chapter 3** | **Widgets** - Render a playlist table and navigate with the arrow keys |
-| **45 min** | **Chapter 4** | **Layout & Styling** - Split the screen into multiple widget areas     |
-| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback              |
-| **60 min** | 🧀            | **Q&A** / **Debugging** / **Bonus tracks**                             |
+| Duration   | Chapter       | Topic                                                              |
+| ---------- | ------------- | ------------------------------------------------------------------ |
+| **10 min** | **Chapter 1** | **Setup** - Create the project from template                       |
+| **15 min** | **Chapter 2** | **Manage State** - Load local MP3 files and show them              |
+| **30 min** | **Chapter 3** | **Widgets** - Render a table and navigate with the arrow keys      |
+| **45 min** | **Chapter 4** | **Layout & Styling** - Split the screen into multiple widget areas |
+| **20 min** | **Chapter 5** | **Interactivity** - Navigate, search and control playback          |
+| **60 min** | 🧀            | **Q&A** + **Bonus tracks**                                         |
 
 <!-- end_slide -->
 
 # Chapter 1 - Setup 🧀 (10 min)
 
-<!-- column_layout: [1, 1] -->
-
-<!-- column: 0 -->
-
 ## Objectives
 
-• Install Rust using `rustup.rs` or any other way
+• Install Rust (e.g. via `rustup.rs`)
 
 • Install `cargo-generate`
 
-• Generate a project from this workshop repository
-
-• Select `template` when prompted, then enter `ratatune` as the project name
-
 ```bash
 cargo install --locked cargo-generate
+```
 
+• Generate a project from this workshop repository
+
+```bash
 cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 ```
 
-• The starter already includes `music.rs` and the audio dependencies
-
-<!-- column: 1 -->
+• Look around and run `cargo build` once and check audio output.
 
 ## Bonus track
 
-• Change the title and colors
-
-• Add a `music/` folder with a few MP3 files
-
-• Run `cargo build` once and check audio output before the workshop
+• 1) Change the title and colors 2) Add your own mp3 files
 
 <!-- end_slide -->
 
@@ -182,17 +172,17 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 ## Objectives
 
-• Use the prepared `music.rs` module to scan local MP3s
+• Load tracks with `music::scan_tracks` and `music::Track`
 
-• Store the list of `Track`s in `App`
+• Store the `Vec<music::Track>` in `App`
 
-• Show the title, artist and track length
-
-• Show a helpful empty-playlist message
+• Show the tracks in a `Paragraph` widget
 
 <!-- column: 1 -->
 
 ## Bonus track
+
+• Format track length with `music::format_duration`
 
 • Show how many tracks were found
 
@@ -222,7 +212,9 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 • Also support `j`/`k` navigation
 
-• Add a helpful empty-playlist message
+• Style alternating rows for easier reading
+
+• Use a symbol such as `▶` to mark the selected row
 
 <!-- end_slide -->
 
@@ -236,7 +228,7 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 • Use `Layout` to split the screen into a header, playlist and footer
 
-• Keep the playlist table and selection from Chapter 3
+• Show playback progress with a `Gauge`
 
 • Render a separate widget in each area
 
@@ -248,9 +240,7 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 • Render rounded borders and a styled header
 
-• Add a selected-track details panel beside the playlist
-
-• Show playback progress with a `Gauge`
+• Add a selected-track details panel
 
 <!-- end_slide -->
 
@@ -262,38 +252,35 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 ## Objectives
 
-• Move through the playlist with `j`/`k` or arrow keys
-
 • Play the selected track with `Enter`
 
 • Pause and resume with `Space`
 
-• Search the playlist with `/`
+• Play the next track with `n`
+
+• Add previous, volume, repeat or shuffle controls
 
 <!-- column: 1 -->
 
 ## Bonus track
 
-• Play the next track with `n`
+• Show a popup with the keyboard shortcuts when pressing `?`
 
-• Add previous, volume, repeat, or shuffle controls
+• Search the playlist with `/`  
+(use `ratatui-textarea`)
 
-• Seek within the current track
+• Add equalizer (use `tui-equalizer`)
 
 <!-- end_slide -->
 
 # Extras (60 min)
 
-<!-- column_layout: [1, 1] -->
+• Work on bonus chapters!
 
-<!-- column: 0 -->
+• Q&A!
 
-• Q&A
-
-• Show & tell!
+• Show & tell! (`https://github.com/ratatui/awesome-ratatui#music-and-audio`)
 
 • Start building your own Ratatui app!
 
-<!-- column: 1 -->
-
-![](assets/rat-cheese.gif)
+![image:width:30%](assets/rat-cheese.gif)
