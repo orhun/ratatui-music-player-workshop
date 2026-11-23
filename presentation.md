@@ -121,7 +121,7 @@ cargo run
 
 <!-- pause -->
 
-`Use AI as less as possible to get the most out of the workshop!`
+`Use AI as little as possible to get the most out of the workshop!`
 
 <!-- end_slide -->
 
