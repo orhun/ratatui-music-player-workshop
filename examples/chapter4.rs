@@ -53,10 +53,12 @@ impl App {
         Ok(())
     }
 
-    /// Split the area into a header, playlist and footer.
+    /// Split the area into a header, playlist and details, progress gauge and footer.
     fn render(&mut self, frame: &mut Frame) {
-        let [header_area, playlist_area, footer_area] =
-            Layout::vertical([Length(3), Min(0), Length(3)]).areas(frame.area());
+        let [header_area, content_area, progress_area, footer_area] =
+            Layout::vertical([Length(3), Min(0), Length(3), Length(3)]).areas(frame.area());
+        let [playlist_area, details_area] =
+            Layout::horizontal([Percentage(65), Fill(1)]).areas(content_area);
 
         frame.render_widget(
             Paragraph::new("♫ Ratatune ♫")
@@ -93,6 +95,46 @@ impl App {
                 playlist_area,
             );
         }
+
+        let details = self
+            .table_state
+            .selected()
+            .and_then(|index| self.tracks.get(index))
+            .map_or_else(
+                || "Select a track to see its details".to_string(),
+                |track| {
+                    format!(
+                        "{}\n\nArtist: {}\nAlbum: {}\nLength: {}",
+                        track.title,
+                        track.artist.as_deref().unwrap_or("Unknown artist"),
+                        track.album.as_deref().unwrap_or("Unknown album"),
+                        format_duration(track.duration)
+                    )
+                },
+            );
+        frame.render_widget(
+            Paragraph::new(details)
+                .block(Self::create_pane("Track Details"))
+                .wrap(Wrap { trim: true }),
+            details_area,
+        );
+
+        // Use sample values here; Chapter 5 connects the gauge to live playback.
+        let position = Duration::from_secs(42);
+        let duration = Duration::from_secs(195);
+        let ratio = position.as_secs_f64() / duration.as_secs_f64();
+        frame.render_widget(
+            Gauge::default()
+                .block(Self::create_pane("Progress"))
+                .gauge_style(Style::new().fg(tailwind::GREEN.c400))
+                .ratio(ratio)
+                .label(format!(
+                    "{} / {}",
+                    format_duration(position),
+                    format_duration(duration)
+                )),
+            progress_area,
+        );
 
         frame.render_widget(
             Paragraph::new("↑/↓ or j/k select  q quit")

@@ -59,7 +59,7 @@ theme:
 
 <!-- column: 1 -->
 
-![image:width:70%](assets/ratatui-spin.gif)
+![image:width:80%](assets/ratatui-spin.gif)
 
 <!-- column: 0 -->
 
@@ -156,7 +156,7 @@ cargo install --locked cargo-generate
 cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 ```
 
-• Look around and run `cargo build` once and check audio output.
+• Look around and run `cargo run` once and check audio output.
 
 ## Bonus track
 
@@ -172,9 +172,9 @@ cargo generate --git https://github.com/orhun/ratatui-music-player-workshop
 
 ## Objectives
 
-• Load tracks with `music::scan_tracks` and `music::Track`
-
 • Store the `Vec<music::Track>` in `App`
+
+• Load tracks with `music::scan_tracks`
 
 • Show the tracks in a `Paragraph` widget
 
